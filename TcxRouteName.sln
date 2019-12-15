@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29519.87
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TcxRouteName", "TcxRouteName\TcxRouteName.vcxproj", "{CDCA45B6-27BE-48DE-A53F-2A5CF3A9B375}"
+EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "Setup", "Setup\Setup.vdproj", "{F601C809-92FB-4E9E-96CC-25510AC0A02D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CDCA45B6-27BE-48DE-A53F-2A5CF3A9B375}.Debug|x64.ActiveCfg = Debug|x64
+		{CDCA45B6-27BE-48DE-A53F-2A5CF3A9B375}.Debug|x64.Build.0 = Debug|x64
+		{CDCA45B6-27BE-48DE-A53F-2A5CF3A9B375}.Debug|x86.ActiveCfg = Debug|Win32
+		{CDCA45B6-27BE-48DE-A53F-2A5CF3A9B375}.Debug|x86.Build.0 = Debug|Win32
+		{CDCA45B6-27BE-48DE-A53F-2A5CF3A9B375}.Release|x64.ActiveCfg = Release|x64
+		{CDCA45B6-27BE-48DE-A53F-2A5CF3A9B375}.Release|x64.Build.0 = Release|x64
+		{CDCA45B6-27BE-48DE-A53F-2A5CF3A9B375}.Release|x86.ActiveCfg = Release|Win32
+		{CDCA45B6-27BE-48DE-A53F-2A5CF3A9B375}.Release|x86.Build.0 = Release|Win32
+		{F601C809-92FB-4E9E-96CC-25510AC0A02D}.Debug|x64.ActiveCfg = Debug
+		{F601C809-92FB-4E9E-96CC-25510AC0A02D}.Debug|x86.ActiveCfg = Debug
+		{F601C809-92FB-4E9E-96CC-25510AC0A02D}.Release|x64.ActiveCfg = Release
+		{F601C809-92FB-4E9E-96CC-25510AC0A02D}.Release|x86.ActiveCfg = Release
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {AEB13DD4-E8AB-455C-A1F2-53B14AE0313C}
+	EndGlobalSection
+EndGlobal
