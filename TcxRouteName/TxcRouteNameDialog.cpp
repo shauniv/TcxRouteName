@@ -61,6 +61,9 @@ LRESULT TcxRouteNameDialog::OnInitDialog(WPARAM, LPARAM)
     {
         // Set the focus to the route name edit control
         SetFocus(GetDlgItem(m_hWnd, IDC_EDIT_ROUTE_NAME));
+
+        // Select all of the text
+        SendDlgItemMessage(m_hWnd, IDC_EDIT_ROUTE_NAME, EM_SETSEL, 0, -1);
     }
 
     return 0;
@@ -170,98 +173,122 @@ HRESULT TcxRouteNameDialog::GetFirstGarminDeviceNewFilesDirectory(PWSTR pszDrive
     return hr;
 }
 
-HRESULT TcxRouteNameDialog::LoadFile(PCWSTR pszFile)
+HRESULT TcxRouteNameDialog::LoadXmlDocument(PCWSTR pszFile, IXMLDOMDocument** ppXmlDocument)
 {
-    AutoWaitCursor wc;
+    *ppXmlDocument = NULL;
 
     // Load the new document
     CComPtr<IXMLDOMDocument> spDocument;
     HRESULT hr = ::CoCreateInstance(__uuidof(DOMDocument), NULL, CLSCTX_ALL, IID_PPV_ARGS(&spDocument));
     if (SUCCEEDED(hr))
     {
-        CComVariant svarSource(pszFile);
-
-        VARIANT_BOOL fIsSuccessful = VARIANT_TRUE;
-        hr = spDocument->load(svarSource, &fIsSuccessful);
-        if (S_FALSE == hr || VARIANT_FALSE == fIsSuccessful)
+        if (PathFileExistsW(pszFile))
         {
-            // this isn't a valid XML file.
-            hr = E_FAIL;
+            VARIANT_BOOL fIsSuccessful = VARIANT_FALSE;
+            hr = spDocument->load(CComVariant(pszFile), &fIsSuccessful);
+            if (S_FALSE != hr && VARIANT_FALSE != fIsSuccessful)
+            {
+                *ppXmlDocument = spDocument.Detach();
+            }
+            else
+            {
+                // this isn't a valid XML file.
+                hr = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+            }
+        }
+        else
+        {
+            hr = HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
         }
     }
+    return hr;
+}
 
-    // Still OK?  Verify it is a course and set its unique ID
+HRESULT TcxRouteNameDialog::ValidateTcxRoute(IXMLDOMDocument* pXmlDocument)
+{
+    // Get the existing unique ID to verify this is a TCX route
+    CComBSTR sbstrUniqueId;
+    HRESULT hr = XmlHelpers::GetString(pXmlDocument, s_pszXPathIdQuery, &sbstrUniqueId);
     if (SUCCEEDED(hr))
     {
-        // Get the existing unique ID to verify this is a TCX route
-        CComBSTR sbstrUniqueId;
-        hr = XmlHelpers::GetString(spDocument, s_pszXPathIdQuery, &sbstrUniqueId);
+        // Get the course name to verify this is a TCX route
+        CComBSTR sbstrName;
+        hr = XmlHelpers::GetString(pXmlDocument, s_pszXPathNameQuery, &sbstrName);
         if (SUCCEEDED(hr))
         {
-            // Get the course name to verify this is a TCX route
-            CComBSTR sbstrName;
-            hr = XmlHelpers::GetString(spDocument, s_pszXPathNameQuery, &sbstrName);
+            // Create a new unique ID
+            GUID guidUniqueId;
+            hr = ::CoCreateGuid(&guidUniqueId);
             if (SUCCEEDED(hr))
             {
-                // Create a new unique ID
-                GUID guidUniqueId;
-                hr = ::CoCreateGuid(&guidUniqueId);
+                // Format it
+                WCHAR szGuid[MAX_PATH];
+                hr = StringCchPrintfW(szGuid, ARRAYSIZE(szGuid), L"%08X%04X%04X%02X%02X%02X%02X%02X%02X%02X%02X", guidUniqueId.Data1, guidUniqueId.Data2, guidUniqueId.Data3, guidUniqueId.Data4[0], guidUniqueId.Data4[1], guidUniqueId.Data4[2], guidUniqueId.Data4[3], guidUniqueId.Data4[4], guidUniqueId.Data4[5], guidUniqueId.Data4[6], guidUniqueId.Data4[7]);
                 if (SUCCEEDED(hr))
                 {
-                    // Format it
-                    WCHAR szGuid[MAX_PATH];
-                    hr = StringCchPrintfW(szGuid, ARRAYSIZE(szGuid), L"%08X%04X%04X%02X%02X%02X%02X%02X%02X%02X%02X", guidUniqueId.Data1, guidUniqueId.Data2, guidUniqueId.Data3, guidUniqueId.Data4[0], guidUniqueId.Data4[1], guidUniqueId.Data4[2], guidUniqueId.Data4[3], guidUniqueId.Data4[4], guidUniqueId.Data4[5], guidUniqueId.Data4[6], guidUniqueId.Data4[7]);
-                    if (SUCCEEDED(hr))
-                    {
-                        // Set the new unique ID
-                        hr = XmlHelpers::SetString(spDocument, s_pszXPathIdQuery, szGuid);
-                    }
+                    // Set the new unique ID
+                    hr = XmlHelpers::SetString(pXmlDocument, s_pszXPathIdQuery, szGuid);
                 }
             }
         }
     }
+    return hr;
+}
 
-    // Still OK?  Now we'll construct the title from the filename
-    WCHAR szFilename[MAX_PATH] = {};
+
+HRESULT TcxRouteNameDialog::LoadFile(PCWSTR pszFile)
+{
+    AutoWaitCursor wc;
+
+    // Load the new document
+    CComPtr<IXMLDOMDocument> spDocument;
+    HRESULT hr = LoadXmlDocument(pszFile, &spDocument);
     if (SUCCEEDED(hr))
     {
-        // Get the filename so we can format it as a title
-        hr = StringCchCopyW(szFilename, ARRAYSIZE(szFilename), PathFindFileNameW(pszFile));
+        // Verify it is a course and set its unique ID
+        hr = ValidateTcxRoute(spDocument);
         if (SUCCEEDED(hr))
         {
-            // Remove the extension
-            PathRemoveExtensionW(szFilename);
+            // Format the filename as a title
+            WCHAR szFilename[MAX_PATH] = {};
+            hr = StringCchCopyW(szFilename, ARRAYSIZE(szFilename), PathFindFileNameW(pszFile));
+            if (SUCCEEDED(hr))
+            {
+                // Remove the extension
+                PathRemoveExtensionW(szFilename);
 
-            // Replace underscores with spaces
-            ReplaceCharactersInPlace(szFilename, L'_', L' ');
+                // Replace underscores with spaces
+                ReplaceCharactersInPlace(szFilename, L'_', L' ');
+
+                // Set the input file name
+                SetDlgItemTextW(m_hWnd, IDC_EDIT_INPUT_FILE, pszFile);
+
+                // Set the title
+                SetDlgItemTextW(m_hWnd, IDC_EDIT_ROUTE_NAME, szFilename);
+
+                // Empty the output file name (it will get filled in on the next step)
+                SetDlgItemTextW(m_hWnd, IDC_EDIT_OUTPUT_FILE, L"");
+
+                // Set the output file name if we have a device
+                ConstructOutputFileName();
+
+                // Save the document pointer
+                m_spDocument.Release();
+                m_spDocument.Attach(spDocument.Detach());
+            }
+            else
+            {
+                DisplayFormattedMessage(MB_ICONEXCLAMATION | MB_OK, IDS_LOAD_ERROR_UNEXPECTED, pszFile, hr);
+            }
+        }
+        else
+        {
+            DisplayFormattedMessage(MB_ICONEXCLAMATION | MB_OK, IDS_LOAD_ERROR_INVALID_TCX_ROUTE, pszFile, hr);
         }
     }
-
-
-    // Still OK?  Set the edit control text and construct the output file name
-    if (SUCCEEDED(hr))
+    else
     {
-        // Set the input file name
-        SetDlgItemTextW(m_hWnd, IDC_EDIT_INPUT_FILE, pszFile);
-
-        // Set the title
-        SetDlgItemTextW(m_hWnd, IDC_EDIT_ROUTE_NAME, szFilename);
-
-        // Empty the output file name (it will get filled in on the next step)
-        SetDlgItemTextW(m_hWnd, IDC_EDIT_OUTPUT_FILE, L"");
-
-        // Set the output file name if we have a device
-        ConstructOutputFileName();
-
-        // Save the document pointer
-        m_spDocument.Release();
-        m_spDocument.Attach(spDocument.Detach());
-    }
-
-    // If an error occurred, display an error message
-    if FAILED(hr)
-    {
-        DisplayFormattedMessage(MB_ICONEXCLAMATION | MB_OK, IDS_INVALID_TCX_ROUTE);
+        DisplayFormattedMessage(MB_ICONEXCLAMATION | MB_OK, IDS_LOAD_ERROR_INVALID_FILE, pszFile, hr);
     }
 
     // Disable/Enable the Save button

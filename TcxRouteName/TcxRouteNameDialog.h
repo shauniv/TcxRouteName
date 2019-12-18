@@ -21,6 +21,8 @@ private:
     void UpdateSaveButtonState();
     int DisplayFormattedMessage(int nButtons, UINT uFormatStringId, ...);
     HRESULT GetFirstGarminDeviceNewFilesDirectory(PWSTR pszDrive, size_t cchDrive);
+    HRESULT LoadXmlDocument(PCWSTR pszFile, IXMLDOMDocument** ppXmlDocument);
+    HRESULT ValidateTcxRoute(IXMLDOMDocument* pXmlDocument);
     HRESULT LoadFile(PCWSTR pszFile);
     void ConstructOutputFileName();
 
