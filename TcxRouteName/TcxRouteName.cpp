@@ -5,13 +5,13 @@
 #include "resource.h"
 #include "TcxRouteNameDialog.h"
 
-int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ LPWSTR, _In_ int)
+int CALLBACK wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPWSTR, _In_ int)
 {
     HRESULT hr = CoInitialize(NULL);
     if (SUCCEEDED(hr))
     {
         InitCommonControls();
-        DialogBox(hInstance, MAKEINTRESOURCE(IDD_TCX_INPUT_DIALOG), NULL, TcxRouteNameDialog::DialogProc);
+        DialogBox(HINST_THIS_MODULE, MAKEINTRESOURCE(IDD_TCX_INPUT_DIALOG), NULL, TcxRouteNameDialog::DialogProc);
         CoUninitialize();
     }
     return 0;

@@ -5,6 +5,7 @@
 #include "XmlHelpers.h"
 #include "WindowHelpers.h"
 #include "TcxRouteNameDialog.h"
+#include <winioctl.h>
 
 TcxRouteNameDialog::TcxRouteNameDialog(HWND hWnd)
     : m_hWnd(hWnd)
@@ -322,7 +323,7 @@ void TcxRouteNameDialog::OnBrowseInput(WPARAM, LPARAM)
     }
     else
     {
-        hr = HRESULT_FROM_WIN32(GetLastError());
+        hr = HRESULT_FROM_WIN32(::GetLastError());
     }
 }
 
@@ -364,7 +365,7 @@ void TcxRouteNameDialog::OnBrowseOutput(WPARAM, LPARAM)
     }
     else
     {
-        hr = HRESULT_FROM_WIN32(GetLastError());
+        hr = HRESULT_FROM_WIN32(::GetLastError());
     }
 
     m_fIgnoreDeviceChange = false;
@@ -415,6 +416,64 @@ void TcxRouteNameDialog::ConstructOutputFileName()
     }
 }
 
+HRESULT TcxRouteNameDialog::SaveXmlDocumentAndFlush(PCWSTR pszFile)
+{
+    HRESULT hr = S_OK;
+
+    HGLOBAL	hMem = ::GlobalAlloc(GMEM_MOVEABLE, 0);
+    if (hMem != NULL)
+    {
+        CComPtr<IStream> spStream;
+        hr = ::CreateStreamOnHGlobal(hMem, FALSE, &spStream);
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spDocument->save(CComVariant(spStream));
+            if (SUCCEEDED(hr))
+            {
+                HANDLE hFile = ::CreateFileW(pszFile, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+                if (hFile != INVALID_HANDLE_VALUE)
+                {
+                    LPVOID pXmlData = ::GlobalLock(hMem);
+                    if (pXmlData != NULL)
+                    {
+                        DWORD dwWritten = 0;
+                        BOOL fResult = ::WriteFile(hFile, pXmlData, ::GlobalSize(hMem), &dwWritten, NULL);
+                        if (fResult)
+                        {
+                            fResult = ::FlushFileBuffers(hFile);
+                            if (!fResult)
+                            {
+                                hr = HRESULT_FROM_WIN32(::GetLastError());
+                            }
+                        }
+                        else
+                        {
+                            hr = HRESULT_FROM_WIN32(::GetLastError());
+                        }
+                        ::GlobalUnlock(hMem);
+                    }
+                    else
+                    {
+                        hr = HRESULT_FROM_WIN32(::GetLastError());
+                    }
+                    ::CloseHandle(hFile);
+                }
+                else
+                {
+                    hr = HRESULT_FROM_WIN32(::GetLastError());
+                }
+            }
+        }
+        ::GlobalFree(hMem);
+    }
+    else
+    {
+        hr = HRESULT_FROM_WIN32(::GetLastError());
+    }
+    return hr;
+}
+
+
 void TcxRouteNameDialog::OnSave(WPARAM, LPARAM)
 {
     AutoWaitCursor wc;
@@ -433,9 +492,8 @@ void TcxRouteNameDialog::OnSave(WPARAM, LPARAM)
             hr = XmlHelpers::SetString(m_spDocument, s_pszXPathNameQuery, szRouteName);
             if (SUCCEEDED(hr))
             {
-                // Save document
-                CComVariant spOutputFile(szOutputFile);
-                hr = m_spDocument->save(spOutputFile);
+                // Save the document and flush it to disk
+                hr = SaveXmlDocumentAndFlush(szOutputFile);
                 if (FAILED(hr))
                 {
                     DisplayFormattedMessage(MB_ICONERROR | MB_OK, IDS_SAVE_ERROR_SAVING, hr);

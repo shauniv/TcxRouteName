@@ -25,6 +25,7 @@ private:
     HRESULT ValidateTcxRoute(IXMLDOMDocument* pXmlDocument);
     HRESULT LoadFile(PCWSTR pszFile);
     void ConstructOutputFileName();
+    HRESULT SaveXmlDocumentAndFlush(PCWSTR pszFile);
 
     LRESULT OnInitDialog(WPARAM, LPARAM);
     LRESULT OnDeviceChange(WPARAM wParam, LPARAM lParam);
