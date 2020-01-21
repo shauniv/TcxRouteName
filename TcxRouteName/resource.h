@@ -17,6 +17,11 @@
 #define IDS_SAVE_ERROR_GETTING_OUTPUT_FILENAME 112
 #define IDS_LOAD_ERROR_UNEXPECTED       113
 #define IDS_SAVE_ERROR_FLUSHING_BUFFERS 114
+#define IDS_STATUS_FILE_LOADED          115
+#define IDS_STATUS_FILE_SAVED           116
+#define IDS_STATUS_FILE_DELETED         117
+#define IDS_STATUS_INPUT_FILE_NOT_FOUND 118
+#define IDS_ERROR_UNABLE_TO_DELETE      119
 #define IDD_TCX_INPUT_DIALOG            129
 #define IDC_EDIT_INPUT_FILE             1000
 #define IDC_EDIT_ROUTE_NAME             1001
@@ -24,6 +29,8 @@
 #define IDC_SAVE                        1003
 #define IDC_BROWSE_INPUT                1004
 #define IDC_BROWSE_OUTPUT               1005
+#define IDC_STATUS_BAR                  1006
+#define IDC_DELETE_INPUT                1007
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -33,7 +40,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1006
+#define _APS_NEXT_CONTROL_VALUE         1008
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

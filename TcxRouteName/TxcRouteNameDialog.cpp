@@ -10,6 +10,7 @@
 TcxRouteNameDialog::TcxRouteNameDialog(HWND hWnd)
     : m_hWnd(hWnd)
     , m_fIgnoreDeviceChange(false)
+    , m_fInputFileDeleted(false)
 {
 }
 
@@ -67,6 +68,7 @@ LRESULT TcxRouteNameDialog::OnInitDialog(WPARAM, LPARAM)
         SendDlgItemMessage(m_hWnd, IDC_EDIT_ROUTE_NAME, EM_SETSEL, 0, -1);
     }
 
+
     return 0;
 }
 
@@ -113,30 +115,64 @@ void TcxRouteNameDialog::UpdateSaveButtonState()
     }
 }
 
+void TcxRouteNameDialog::UpdateDeleteButtonState()
+{
+    BOOL fEnable = TRUE;
+    if (m_fInputFileDeleted)
+    {
+        fEnable = FALSE;
+    }
+    if (::GetWindowTextLengthW(GetDlgItem(m_hWnd, IDC_EDIT_INPUT_FILE)) == 0)
+    {
+        fEnable = FALSE;
+    }
+    if (::IsWindowEnabled(GetDlgItem(m_hWnd, IDC_DELETE_INPUT)) != fEnable)
+    {
+        ::EnableWindow(GetDlgItem(m_hWnd, IDC_DELETE_INPUT), fEnable);
+    }
+}
+
 void TcxRouteNameDialog::OnEditChange(WPARAM, LPARAM)
 {
     UpdateSaveButtonState();
 }
 
-int TcxRouteNameDialog::DisplayFormattedMessage(int nButtons, UINT uFormatStringId, ...)
+int TcxRouteNameDialog::FormattedMessageBox(int nButtons, UINT uFormatStringId, ...)
 {
     // Load the title string
     WCHAR szTitle[128] = {};
-    LoadStringW(HINST_THIS_MODULE, IDS_APP_NAME, szTitle, ARRAYSIZE(szTitle));
+    ::LoadStringW(HINST_THIS_MODULE, IDS_APP_NAME, szTitle, ARRAYSIZE(szTitle));
 
     // Load the format string
     WCHAR szFormat[1024] = {};
-    LoadStringW(HINST_THIS_MODULE, uFormatStringId, szFormat, ARRAYSIZE(szFormat));
+    ::LoadStringW(HINST_THIS_MODULE, uFormatStringId, szFormat, ARRAYSIZE(szFormat));
 
     // Format the string
     WCHAR szMessage[1024] = {};
     va_list argList;
     va_start(argList, uFormatStringId);
-    (void)StringCchVPrintfW(szMessage, ARRAYSIZE(szMessage), szFormat, argList);
+    (void)::StringCchVPrintfW(szMessage, ARRAYSIZE(szMessage), szFormat, argList);
     va_end(argList);
 
     // Display the message
-    return MessageBoxW(m_hWnd, szMessage, szTitle, nButtons);
+    return ::MessageBoxW(m_hWnd, szMessage, szTitle, nButtons);
+}
+
+void TcxRouteNameDialog::FormatStatusMessage(UINT uFormatStringId, ...)
+{
+    // Load the format string
+    WCHAR szFormat[1024] = {};
+    ::LoadStringW(HINST_THIS_MODULE, uFormatStringId, szFormat, ARRAYSIZE(szFormat));
+
+    // Format the string
+    WCHAR szMessage[1024] = {};
+    va_list argList;
+    va_start(argList, uFormatStringId);
+    (void)::StringCchVPrintfW(szMessage, ARRAYSIZE(szMessage), szFormat, argList);
+    va_end(argList);
+
+    // Set the status text
+    ::SetDlgItemText(m_hWnd, IDC_STATUS_BAR, szMessage);
 }
 
 HRESULT TcxRouteNameDialog::GetFirstGarminDeviceNewFilesDirectory(PWSTR pszDrive, size_t cchDrive)
@@ -273,27 +309,36 @@ HRESULT TcxRouteNameDialog::LoadFile(PCWSTR pszFile)
                 // Set the output file name if we have a device
                 ConstructOutputFileName();
 
+                // Set status bar text
+                FormatStatusMessage(IDS_STATUS_FILE_LOADED, pszFile);
+
+                // Reset the file deleted flag
+                m_fInputFileDeleted = false;
+
                 // Save the document pointer
                 m_spDocument.Release();
                 m_spDocument.Attach(spDocument.Detach());
             }
             else
             {
-                DisplayFormattedMessage(MB_ICONEXCLAMATION | MB_OK, IDS_LOAD_ERROR_UNEXPECTED, pszFile, hr);
+                FormattedMessageBox(MB_ICONEXCLAMATION | MB_OK, IDS_LOAD_ERROR_UNEXPECTED, pszFile, hr);
             }
         }
         else
         {
-            DisplayFormattedMessage(MB_ICONEXCLAMATION | MB_OK, IDS_LOAD_ERROR_INVALID_TCX_ROUTE, pszFile, hr);
+            FormattedMessageBox(MB_ICONEXCLAMATION | MB_OK, IDS_LOAD_ERROR_INVALID_TCX_ROUTE, pszFile, hr);
         }
     }
     else
     {
-        DisplayFormattedMessage(MB_ICONEXCLAMATION | MB_OK, IDS_LOAD_ERROR_INVALID_FILE, pszFile, hr);
+        FormattedMessageBox(MB_ICONEXCLAMATION | MB_OK, IDS_LOAD_ERROR_INVALID_FILE, pszFile, hr);
     }
 
     // Disable/Enable the Save button
     UpdateSaveButtonState();
+
+    // Update the delete button state
+    UpdateDeleteButtonState();
     return hr;
 }
 
@@ -374,6 +419,37 @@ void TcxRouteNameDialog::OnBrowseOutput(WPARAM, LPARAM)
     ConstructOutputFileName();
 }
 
+void TcxRouteNameDialog::OnDeleteInput(WPARAM, LPARAM)
+{
+    WCHAR szInputFileName[MAX_PATH] = {};
+    if (GetDlgItemTextW(m_hWnd, IDC_EDIT_INPUT_FILE, szInputFileName, ARRAYSIZE(szInputFileName)))
+    {
+        // Make sure it isn't empty
+        if (lstrlenW(szInputFileName) != 0)
+        {
+            if (::PathFileExistsW(szInputFileName))
+            {
+                BOOL fResult = ::DeleteFileW(szInputFileName);
+                if (fResult)
+                {
+                    m_fInputFileDeleted = true;
+                    FormatStatusMessage(IDS_STATUS_FILE_DELETED, szInputFileName);
+                    FormattedMessageBox(MB_OK | MB_ICONASTERISK, IDS_STATUS_FILE_DELETED, szInputFileName);
+                }
+                else
+                {
+                    FormattedMessageBox(MB_OK | MB_ICONEXCLAMATION, IDS_ERROR_UNABLE_TO_DELETE, szInputFileName, HRESULT_FROM_WIN32(::GetLastError()));
+                }
+            }
+            else
+            {
+                FormattedMessageBox(MB_OK | MB_ICONASTERISK, IDS_STATUS_INPUT_FILE_NOT_FOUND, szInputFileName);
+            }
+        }
+    }
+    UpdateDeleteButtonState();
+}
+
 LRESULT TcxRouteNameDialog::OnDeviceChange(WPARAM wParam, LPARAM lParam)
 {
     if (!m_fIgnoreDeviceChange)
@@ -415,6 +491,7 @@ void TcxRouteNameDialog::ConstructOutputFileName()
         }
     }
 }
+
 
 HRESULT TcxRouteNameDialog::SaveXmlDocumentAndFlush(PCWSTR pszFile)
 {
@@ -494,24 +571,29 @@ void TcxRouteNameDialog::OnSave(WPARAM, LPARAM)
             {
                 // Save the document and flush it to disk
                 hr = SaveXmlDocumentAndFlush(szOutputFile);
-                if (FAILED(hr))
+                if (SUCCEEDED(hr))
                 {
-                    DisplayFormattedMessage(MB_ICONERROR | MB_OK, IDS_SAVE_ERROR_SAVING, hr);
+                    FormatStatusMessage(IDS_STATUS_FILE_SAVED, szOutputFile);
+                    FormattedMessageBox(MB_OK | MB_ICONASTERISK, IDS_STATUS_FILE_SAVED, szOutputFile);
+                }
+                else
+                {
+                    FormattedMessageBox(MB_ICONERROR | MB_OK, IDS_SAVE_ERROR_SAVING, hr);
                 }
             }
             else
             {
-                DisplayFormattedMessage(MB_ICONERROR | MB_OK, IDS_SAVE_ERROR_SETTING_ROUTE_NAME, hr);
+                FormattedMessageBox(MB_ICONERROR | MB_OK, IDS_SAVE_ERROR_SETTING_ROUTE_NAME, hr);
             }
         }
         else
         {
-            DisplayFormattedMessage(MB_ICONERROR | MB_OK, IDS_SAVE_ERROR_GETTING_ROUTE_NAME);
+            FormattedMessageBox(MB_ICONERROR | MB_OK, IDS_SAVE_ERROR_GETTING_ROUTE_NAME);
         }
     }
     else
     {
-        DisplayFormattedMessage(MB_ICONERROR | MB_OK, IDS_SAVE_ERROR_GETTING_OUTPUT_FILENAME);
+        FormattedMessageBox(MB_ICONERROR | MB_OK, IDS_SAVE_ERROR_GETTING_OUTPUT_FILENAME);
     }
 }
 
@@ -530,6 +612,7 @@ INT_PTR CALLBACK TcxRouteNameDialog::DialogProc(HWND hWnd, UINT uMsg, WPARAM wPa
             COMMAND_HANDLER(IDC_SAVE, OnSave);
             COMMAND_HANDLER(IDC_BROWSE_INPUT, OnBrowseInput);
             COMMAND_HANDLER(IDC_BROWSE_OUTPUT, OnBrowseOutput);
+            COMMAND_HANDLER(IDC_DELETE_INPUT, OnDeleteInput);
         }
         END_COMMAND_HANDLERS();
     }

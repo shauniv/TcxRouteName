@@ -9,6 +9,7 @@ private:
     HWND                     m_hWnd;
     CComPtr<IXMLDOMDocument> m_spDocument;
     bool                     m_fIgnoreDeviceChange;
+    bool                     m_fInputFileDeleted;
     static const WCHAR* s_pszXPathIdQuery;
     static const WCHAR* s_pszXPathNameQuery;
 
@@ -19,7 +20,9 @@ private:
     void ReplaceCharactersInPlace(PWSTR pszString, WCHAR chFrom, WCHAR chTo);
     BOOL SetupDeviceArrivalNotifications(IN GUID InterfaceClassGuid, OUT HDEVNOTIFY* hDeviceNotify);
     void UpdateSaveButtonState();
-    int DisplayFormattedMessage(int nButtons, UINT uFormatStringId, ...);
+    void UpdateDeleteButtonState();
+    int FormattedMessageBox(int nButtons, UINT uFormatStringId, ...);
+    void FormatStatusMessage(UINT uFormatStringId, ...);
     HRESULT GetFirstGarminDeviceNewFilesDirectory(PWSTR pszDrive, size_t cchDrive);
     HRESULT LoadXmlDocument(PCWSTR pszFile, IXMLDOMDocument** ppXmlDocument);
     HRESULT ValidateTcxRoute(IXMLDOMDocument* pXmlDocument);
@@ -34,6 +37,7 @@ private:
     void OnEditChange(WPARAM, LPARAM);
     void OnBrowseInput(WPARAM, LPARAM);
     void OnBrowseOutput(WPARAM, LPARAM);
+    void OnDeleteInput(WPARAM, LPARAM);
     void OnSave(WPARAM, LPARAM);
 
 public:
