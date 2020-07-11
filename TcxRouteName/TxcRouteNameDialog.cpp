@@ -550,6 +550,48 @@ HRESULT TcxRouteNameDialog::SaveXmlDocumentAndFlush(PCWSTR pszFile)
     return hr;
 }
 
+HRESULT FlushDrive(PCWSTR szOutputFile)
+{
+    HRESULT hr = S_FALSE;
+    int nDrive = PathGetDriveNumber(szOutputFile);
+    if (nDrive >= 0)
+    {
+        WCHAR szPath[MAX_PATH];
+        hr = StringCchPrintfW(szPath, ARRAYSIZE(szPath), L"\\\\.\\%lc:", nDrive + L'A');
+        if (SUCCEEDED(hr))
+        {
+            HANDLE hFile = CreateFileW(szPath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+            if (hFile != INVALID_HANDLE_VALUE)
+            {
+                BOOL fResult = FlushFileBuffers(hFile);
+                if (fResult)
+                {
+                    DWORD dwBytes = 0;
+                    fResult = DeviceIoControl(hFile, 0x90018, NULL, 0, NULL, 0, &dwBytes, NULL);
+                    if (fResult)
+                    {
+                        fResult = DeviceIoControl(hFile, 0x90020, NULL, 0, NULL, 0, &dwBytes, NULL);
+                    }
+                    else
+                    {
+                        hr = HRESULT_FROM_WIN32(GetLastError());
+                    }
+                }
+                else
+                {
+                    hr = HRESULT_FROM_WIN32(GetLastError());
+                }
+                CloseHandle(hFile);
+            }
+            else
+            {
+                hr = HRESULT_FROM_WIN32(GetLastError());
+            }
+        }
+    }
+    return hr;
+}
+
 
 void TcxRouteNameDialog::OnSave(WPARAM, LPARAM)
 {
@@ -573,8 +615,16 @@ void TcxRouteNameDialog::OnSave(WPARAM, LPARAM)
                 hr = SaveXmlDocumentAndFlush(szOutputFile);
                 if (SUCCEEDED(hr))
                 {
-                    FormatStatusMessage(IDS_STATUS_FILE_SAVED, szOutputFile);
-                    FormattedMessageBox(MB_OK | MB_ICONASTERISK, IDS_STATUS_FILE_SAVED, szOutputFile);
+                    hr = FlushDrive(szOutputFile);
+                    if (SUCCEEDED(hr))
+                    {
+                        FormatStatusMessage(IDS_STATUS_FILE_SAVED, szOutputFile);
+                        FormattedMessageBox(MB_OK | MB_ICONASTERISK, IDS_STATUS_FILE_SAVED, szOutputFile);
+                    }
+                    else
+                    {
+                        FormattedMessageBox(MB_ICONERROR | MB_OK, IDS_ERROR_UNABLE_TO_FLUSH_DEVICE, hr);
+                    }
                 }
                 else
                 {
