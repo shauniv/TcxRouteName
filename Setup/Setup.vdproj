@@ -185,15 +185,15 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:TCX Route Name"
-        "ProductCode" = "8:{D0FAF1BE-AA81-4945-9901-2AFCC55A861C}"
-        "PackageCode" = "8:{0522E67F-AE68-4320-B5B0-AF5E27A1191D}"
+        "ProductCode" = "8:{AA2D9295-F0BF-4124-A86C-BC0ED2539480}"
+        "PackageCode" = "8:{02022235-B139-4219-BF0A-7B4490DC2254}"
         "UpgradeCode" = "8:{84CA0DCE-62E3-42C0-9A9B-B9003F7BD001}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:TRUE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:FALSE"
-        "ProductVersion" = "8:1.0.6"
+        "ProductVersion" = "8:1.0.7"
         "Manufacturer" = "8:Shaun Ivory"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"
@@ -721,7 +721,7 @@
         {
             "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_65FE453ECA8C423BB60A4D981F3687DB"
             {
-            "SourcePath" = "8:..\\Debug\\TcxRouteName.exe"
+            "SourcePath" = "8:..\\Release\\TcxRouteName.exe"
             "TargetName" = "8:"
             "Tag" = "8:"
             "Folder" = "8:_0E146F2DA7544159B8DE89A0CF2B2623"
