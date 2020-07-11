@@ -567,10 +567,14 @@ HRESULT FlushDrive(PCWSTR szOutputFile)
                 if (fResult)
                 {
                     DWORD dwBytes = 0;
-                    fResult = DeviceIoControl(hFile, 0x90018, NULL, 0, NULL, 0, &dwBytes, NULL);
+                    fResult = DeviceIoControl(hFile, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, &dwBytes, NULL);
                     if (fResult)
                     {
-                        fResult = DeviceIoControl(hFile, 0x90020, NULL, 0, NULL, 0, &dwBytes, NULL);
+                        fResult = DeviceIoControl(hFile, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, &dwBytes, NULL);
+                        if (!fResult)
+                        {
+                            hr = HRESULT_FROM_WIN32(GetLastError());
+                        }
                     }
                     else
                     {
