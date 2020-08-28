@@ -507,7 +507,7 @@ HRESULT TcxRouteNameDialog::SaveXmlDocumentAndFlush(PCWSTR pszFile)
 {
     HRESULT hr = S_OK;
 
-    HGLOBAL	hMem = ::GlobalAlloc(GMEM_MOVEABLE, 0);
+    HGLOBAL hMem = ::GlobalAlloc(GMEM_MOVEABLE, 0);
     if (hMem != NULL)
     {
         CComPtr<IStream> spStream;
@@ -527,6 +527,9 @@ HRESULT TcxRouteNameDialog::SaveXmlDocumentAndFlush(PCWSTR pszFile)
                         BOOL fResult = ::WriteFile(hFile, pXmlData, ::GlobalSize(hMem), &dwWritten, NULL);
                         if (fResult)
                         {
+                            // Truncate the file in case we are overwriting an old file
+                            SetEndOfFile(hFile);
+
                             fResult = ::FlushFileBuffers(hFile);
                             if (!fResult)
                             {
@@ -557,6 +560,7 @@ HRESULT TcxRouteNameDialog::SaveXmlDocumentAndFlush(PCWSTR pszFile)
     {
         hr = HRESULT_FROM_WIN32(::GetLastError());
     }
+    
     return hr;
 }
 
