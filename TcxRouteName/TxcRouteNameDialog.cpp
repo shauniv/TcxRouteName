@@ -417,6 +417,16 @@ void TcxRouteNameDialog::OnBrowseOutput(WPARAM, LPARAM)
 
     // If the user cancelled, might as well try again.
     ConstructOutputFileName();
+
+    // Set the current directory to the directory of the application
+    WCHAR szAppPath[MAX_PATH] = {};
+    if (::GetModuleFileNameW(NULL, szAppPath, ARRAYSIZE(szAppPath)))
+    {
+        if (::PathRemoveFileSpecW(szAppPath))
+        {
+            ::SetCurrentDirectoryW(szAppPath);
+        }
+    }
 }
 
 void TcxRouteNameDialog::OnDeleteInput(WPARAM, LPARAM)
