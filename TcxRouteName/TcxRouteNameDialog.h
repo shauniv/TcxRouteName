@@ -29,6 +29,8 @@ private:
     HRESULT LoadFile(PCWSTR pszFile);
     void ConstructOutputFileName();
     HRESULT SaveXmlDocumentAndFlush(PCWSTR pszFile);
+    HRESULT GetFileCount(PCWSTR pszDirectory, PCWSTR pszPattern, int* nFileCount);
+    HRESULT CountRoutesOnDevice(PCWSTR pszOutputFilename, int* pnNewFilesCount, int* pnCoursesCount);
 
     LRESULT OnInitDialog(WPARAM, LPARAM);
     LRESULT OnDeviceChange(WPARAM wParam, LPARAM lParam);

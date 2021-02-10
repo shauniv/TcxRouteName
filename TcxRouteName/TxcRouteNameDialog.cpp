@@ -610,6 +610,118 @@ HRESULT FlushDrive(PCWSTR szOutputFile)
     return hr;
 }
 
+HRESULT TcxRouteNameDialog::GetFileCount(PCWSTR pszDirectory, PCWSTR pszPattern, int* pnFileCount)
+{
+    *pnFileCount = 0;
+    // Make a copy of the directory
+    WCHAR szFileSpec[MAX_PATH] = {};
+    HRESULT hr = StringCchCopy(szFileSpec, ARRAYSIZE(szFileSpec), pszDirectory);
+    if (SUCCEEDED(hr))
+    {
+        // Add the filespec
+        if (PathAppendW(szFileSpec, pszPattern))
+        {
+            // Find all files with this pattern
+            WIN32_FIND_DATAW findData = {};
+            HANDLE hFind = FindFirstFileW(szFileSpec, &findData);
+            if (INVALID_HANDLE_VALUE != hFind)
+            {
+                int nResult = 0;
+                do
+                {
+                    ++nResult;
+                } 
+                while (FindNextFileW(hFind, &findData));
+                FindClose(hFind);
+                *pnFileCount = nResult;
+            }
+            else
+            {
+                if (ERROR_FILE_NOT_FOUND == GetLastError())
+                {
+                    hr = S_OK;
+                }
+                else
+                {
+                    hr = HRESULT_FROM_WIN32(GetLastError());
+                }
+            }
+        }
+        else
+        {
+            hr = E_UNEXPECTED;
+        }
+    }
+    return hr;
+}
+
+HRESULT TcxRouteNameDialog::CountRoutesOnDevice(PCWSTR pszOutputFilename, int* pnNewFilesCount, int* pnCoursesCount)
+{
+    *pnNewFilesCount = 0;
+    *pnCoursesCount = 0;
+
+    // Make a copy of the output filename
+    WCHAR szOutputDirectory[MAX_PATH] = {};
+    HRESULT hr = StringCchCopy(szOutputDirectory, ARRAYSIZE(szOutputDirectory), pszOutputFilename);
+    if (SUCCEEDED(hr))
+    {
+        // Remove the filename
+        if (PathRemoveFileSpecW(szOutputDirectory))
+        {
+            // Get the directory name
+            PWSTR pszFilename = PathFindFileNameW(szOutputDirectory);
+            if (pszFilename != NULL)
+            {
+                // Is it a Garmin device name?
+                if (0 == lstrcmpiW(pszFilename, L"NewFiles"))
+                {
+                    int nFilesInNewFiles = 0;
+                    hr = GetFileCount(szOutputDirectory, L"*.tcx", &nFilesInNewFiles);
+                    if (SUCCEEDED(hr))
+                    {
+                        // Remove this folder
+                        if (PathRemoveFileSpecW(szOutputDirectory))
+                        {
+                            // Add the courses directory
+                            if (PathAppendW(szOutputDirectory, L"Courses"))
+                            {
+                                int nFilesInCourses = 0;
+                                hr = GetFileCount(szOutputDirectory, L"*.fit", &nFilesInCourses);
+                                if (SUCCEEDED(hr))
+                                {
+                                    *pnNewFilesCount = nFilesInNewFiles;
+                                    *pnCoursesCount = nFilesInCourses;
+                                }
+                            }
+                            else
+                            {
+                                hr = E_UNEXPECTED;
+                            }
+                        }
+                        else
+                        {
+                            hr = E_UNEXPECTED;
+                        }
+                    }
+                }
+                else
+                {
+                    hr = S_FALSE;
+                }
+            }
+            else
+            {
+                hr = E_UNEXPECTED;
+            }
+        }
+        else
+        {
+            hr = E_UNEXPECTED;
+        }
+    }
+    return hr;
+}
+
 
 void TcxRouteNameDialog::OnSave(WPARAM, LPARAM)
 {
@@ -636,8 +748,21 @@ void TcxRouteNameDialog::OnSave(WPARAM, LPARAM)
                     hr = FlushDrive(szOutputFile);
                     if (SUCCEEDED(hr))
                     {
-                        FormatStatusMessage(IDS_STATUS_FILE_SAVED, szOutputFile);
-                        FormattedMessageBox(MB_OK | MB_ICONASTERISK, IDS_STATUS_FILE_SAVED, szOutputFile);
+                        int nFilesInNewFiles = 0;
+                        int nFilesInCourses = 0;
+                        hr = CountRoutesOnDevice(szOutputFile, &nFilesInNewFiles, &nFilesInCourses);
+                        if (SUCCEEDED(hr))
+                        {
+                            if (hr == S_FALSE)
+                            {
+                                FormattedMessageBox(MB_OK | MB_ICONASTERISK, IDS_STATUS_FILE_SAVED, szOutputFile);
+                            }
+                            else
+                            {
+                                FormattedMessageBox(MB_OK | MB_ICONASTERISK, IDS_STATUS_FILE_SAVED_ROUTE_COUNT, szOutputFile, nFilesInNewFiles + nFilesInCourses, nFilesInNewFiles, nFilesInCourses);
+                            }
+                            FormatStatusMessage(IDS_STATUS_FILE_SAVED, szOutputFile);
+                        }
                     }
                     else
                     {
