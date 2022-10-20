@@ -24,6 +24,7 @@
 #define IDS_ERROR_UNABLE_TO_DELETE      119
 #define IDS_ERROR_UNABLE_TO_FLUSH_DEVICE 120
 #define IDS_STATUS_FILE_SAVED_ROUTE_COUNT 121
+#define IDS_BROWSEDIRECTORY_TITLE       122
 #define IDD_TCX_INPUT_DIALOG            129
 #define IDC_EDIT_INPUT_FILE             1000
 #define IDC_EDIT_ROUTE_NAME             1001
@@ -33,6 +34,7 @@
 #define IDC_BROWSE_OUTPUT               1005
 #define IDC_STATUS_BAR                  1006
 #define IDC_DELETE_INPUT                1007
+#define IDC_COMBO_DIRECTORIES           1008
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -42,7 +44,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1008
+#define _APS_NEXT_CONTROL_VALUE         1009
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

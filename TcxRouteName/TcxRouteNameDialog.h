@@ -1,6 +1,8 @@
 #pragma once
 
 #include <windows.h>
+#include <windowsx.h>
+#include <shlobj.h>
 #include <atlbase.h>
 
 class TcxRouteNameDialog
@@ -23,11 +25,12 @@ private:
     void UpdateDeleteButtonState();
     int FormattedMessageBox(int nButtons, UINT uFormatStringId, ...);
     void FormatStatusMessage(UINT uFormatStringId, ...);
-    HRESULT GetFirstGarminDeviceNewFilesDirectory(PWSTR pszDrive, size_t cchDrive);
+    HRESULT GetAllGarminDeviceNewFilesDirectories(PWSTR* ppszPaths);
     HRESULT LoadXmlDocument(PCWSTR pszFile, IXMLDOMDocument** ppXmlDocument);
     HRESULT ValidateTcxRoute(IXMLDOMDocument* pXmlDocument);
     HRESULT LoadFile(PCWSTR pszFile);
-    void ConstructOutputFileName();
+    void AddGarminDevicesToDirectoryList();
+    void ConstructOutputPathName();
     HRESULT SaveXmlDocumentAndFlush(PCWSTR pszFile);
     HRESULT GetFileCount(PCWSTR pszDirectory, PCWSTR pszPattern, int* nFileCount);
     HRESULT CountRoutesOnDevice(PCWSTR pszOutputFilename, int* pnNewFilesCount, int* pnCoursesCount);
@@ -39,8 +42,11 @@ private:
     void OnEditChange(WPARAM, LPARAM);
     void OnBrowseInput(WPARAM, LPARAM);
     void OnBrowseOutput(WPARAM, LPARAM);
+    void OnDirectorySelChange(WPARAM, LPARAM);
     void OnDeleteInput(WPARAM, LPARAM);
     void OnSave(WPARAM, LPARAM);
+
+    static int CALLBACK BrowseCallbackProc(HWND hWnd, UINT uMsg, LPARAM, LPARAM pData);
 
 public:
     static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

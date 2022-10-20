@@ -20,7 +20,7 @@ TcxRouteNameDialog::~TcxRouteNameDialog()
 
 BOOL TcxRouteNameDialog::SetupDeviceArrivalNotifications(IN GUID InterfaceClassGuid, OUT HDEVNOTIFY* hDeviceNotify)
 {
-    DEV_BROADCAST_DEVICEINTERFACE NotificationFilter = {};
+    DEV_BROADCAST_DEVICEINTERFACE NotificationFilter = { };
     NotificationFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE);
     NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
     NotificationFilter.dbcc_classguid = InterfaceClassGuid;
@@ -47,6 +47,9 @@ LRESULT TcxRouteNameDialog::OnInitDialog(WPARAM, LPARAM)
     // Center the window on the desktop
     WindowHelpers::CenterWindow(m_hWnd, GetDesktopWindow());
 
+    // Add any connected devices
+    AddGarminDevicesToDirectoryList();
+
     // If the application was provided any arguments, assume the first one is an input filename
     if (__argc > 1)
     {
@@ -68,6 +71,8 @@ LRESULT TcxRouteNameDialog::OnInitDialog(WPARAM, LPARAM)
         SendDlgItemMessage(m_hWnd, IDC_EDIT_ROUTE_NAME, EM_SETSEL, 0, -1);
     }
 
+    // Construct the output filename
+    ConstructOutputPathName();
 
     return 0;
 }
@@ -140,15 +145,15 @@ void TcxRouteNameDialog::OnEditChange(WPARAM, LPARAM)
 int TcxRouteNameDialog::FormattedMessageBox(int nButtons, UINT uFormatStringId, ...)
 {
     // Load the title string
-    WCHAR szTitle[128] = {};
+    WCHAR szTitle[128] = { };
     ::LoadStringW(HINST_THIS_MODULE, IDS_APP_NAME, szTitle, ARRAYSIZE(szTitle));
 
     // Load the format string
-    WCHAR szFormat[1024] = {};
+    WCHAR szFormat[1024] = { };
     ::LoadStringW(HINST_THIS_MODULE, uFormatStringId, szFormat, ARRAYSIZE(szFormat));
 
     // Format the string
-    WCHAR szMessage[1024] = {};
+    WCHAR szMessage[1024] = { };
     va_list argList;
     va_start(argList, uFormatStringId);
     (void)::StringCchVPrintfW(szMessage, ARRAYSIZE(szMessage), szFormat, argList);
@@ -161,11 +166,11 @@ int TcxRouteNameDialog::FormattedMessageBox(int nButtons, UINT uFormatStringId, 
 void TcxRouteNameDialog::FormatStatusMessage(UINT uFormatStringId, ...)
 {
     // Load the format string
-    WCHAR szFormat[1024] = {};
+    WCHAR szFormat[1024] = { };
     ::LoadStringW(HINST_THIS_MODULE, uFormatStringId, szFormat, ARRAYSIZE(szFormat));
 
     // Format the string
-    WCHAR szMessage[1024] = {};
+    WCHAR szMessage[1024] = { };
     va_list argList;
     va_start(argList, uFormatStringId);
     (void)::StringCchVPrintfW(szMessage, ARRAYSIZE(szMessage), szFormat, argList);
@@ -175,37 +180,58 @@ void TcxRouteNameDialog::FormatStatusMessage(UINT uFormatStringId, ...)
     ::SetDlgItemText(m_hWnd, IDC_STATUS_BAR, szMessage);
 }
 
-HRESULT TcxRouteNameDialog::GetFirstGarminDeviceNewFilesDirectory(PWSTR pszDrive, size_t cchDrive)
+HRESULT TcxRouteNameDialog::GetAllGarminDeviceNewFilesDirectories(PWSTR* ppszPaths)
 {
-    HRESULT hr = E_FAIL;
-    DWORD dwDrives = GetLogicalDrives();
-    for (int i = 0; i < 32; ++i)
+    SIZE_T cchMaxResult = 26 * MAX_PATH + 1;
+    SIZE_T cchRemaining = cchMaxResult;
+    HRESULT hr = S_OK;
+    PWSTR pszResult = reinterpret_cast<PWSTR>(::LocalAlloc(LMEM_FIXED | LMEM_ZEROINIT, cchMaxResult * sizeof(WCHAR)));
+    if (pszResult != NULL)
     {
-        WCHAR szRoot[MAX_PATH] = L"A:\\";
-        if ((1 << i) & dwDrives)
+        PWSTR pszCurrent = pszResult;
+        DWORD dwDrives = GetLogicalDrives();
+        for (int i = 0; i < 32; ++i)
         {
-            szRoot[0] = 'A' + i;
-
-            WCHAR szVolumeName[MAX_PATH];
-            if (GetVolumeInformationW(szRoot, szVolumeName, ARRAYSIZE(szVolumeName), NULL, NULL, NULL, NULL, 0))
+            WCHAR szRoot[MAX_PATH] = L"A:\\";
+            if ((1 << i) & dwDrives)
             {
-                if (_wcsicmp(szVolumeName, L"GARMIN") == 0)
+                szRoot[0] = 'A' + i;
+
+                WCHAR szVolumeName[MAX_PATH];
+                if (GetVolumeInformationW(szRoot, szVolumeName, ARRAYSIZE(szVolumeName), NULL, NULL, NULL, NULL, 0))
                 {
-                    WCHAR szNewFilesPath[MAX_PATH] = {};
-                    if (SUCCEEDED(StringCchCopyW(szNewFilesPath, ARRAYSIZE(szNewFilesPath), szRoot)))
+                    if (_wcsicmp(szVolumeName, L"GARMIN") == 0)
                     {
-                        if (PathAppendW(szNewFilesPath, L"Garmin\\NewFiles"))
+                        WCHAR szNewFilesPath[MAX_PATH] = { };
+                        if (SUCCEEDED(StringCchCopyW(szNewFilesPath, ARRAYSIZE(szNewFilesPath), szRoot)))
                         {
-                            DWORD dwFileAttribues = GetFileAttributesW(szNewFilesPath);
-                            if (dwFileAttribues != INVALID_FILE_ATTRIBUTES && (dwFileAttribues & FILE_ATTRIBUTE_DIRECTORY) != 0)
+                            if (PathAppendW(szNewFilesPath, L"Garmin\\NewFiles"))
                             {
-                                return StringCchCopyW(pszDrive, cchDrive, szNewFilesPath);
+                                DWORD dwFileAttribues = GetFileAttributesW(szNewFilesPath);
+                                if (dwFileAttribues != INVALID_FILE_ATTRIBUTES && (dwFileAttribues & FILE_ATTRIBUTE_DIRECTORY) != 0)
+                                {
+                                    hr = StringCchCopyW(pszCurrent, cchRemaining, szNewFilesPath);
+                                    pszCurrent += lstrlenW(szNewFilesPath) + 1;
+                                    cchRemaining -= (lstrlenW(szNewFilesPath) + 1);
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+    else
+    {
+        hr = E_OUTOFMEMORY;
+    }
+    if (SUCCEEDED(hr))
+    {
+        *ppszPaths = pszResult;
+    }
+    else
+    {
+        ::LocalFree(pszResult);
     }
     return hr;
 }
@@ -287,7 +313,7 @@ HRESULT TcxRouteNameDialog::LoadFile(PCWSTR pszFile)
         if (SUCCEEDED(hr))
         {
             // Format the filename as a title
-            WCHAR szFilename[MAX_PATH] = {};
+            WCHAR szFilename[MAX_PATH] = { };
             hr = StringCchCopyW(szFilename, ARRAYSIZE(szFilename), PathFindFileNameW(pszFile));
             if (SUCCEEDED(hr))
             {
@@ -306,8 +332,8 @@ HRESULT TcxRouteNameDialog::LoadFile(PCWSTR pszFile)
                 // Empty the output file name (it will get filled in on the next step)
                 SetDlgItemTextW(m_hWnd, IDC_EDIT_OUTPUT_FILE, L"");
 
-                // Set the output file name if we have a device
-                ConstructOutputFileName();
+                // Add any detected garmin devices
+                ConstructOutputPathName();
 
                 // Set status bar text
                 FormatStatusMessage(IDS_STATUS_FILE_LOADED, pszFile);
@@ -346,15 +372,15 @@ void TcxRouteNameDialog::OnBrowseInput(WPARAM, LPARAM)
 {
     // Load the filter string
     HRESULT hr = S_OK;
-    WCHAR szFilter[MAX_PATH] = {};
+    WCHAR szFilter[MAX_PATH] = { };
     if (LoadStringW(HINST_THIS_MODULE, IDS_OPEN_MASK, szFilter, ARRAYSIZE(szFilter)))
     {
         ReplaceCharactersInPlace(szFilter, L'|', L'\0');
 
-        WCHAR szFileName[MAX_PATH] = {};
+        WCHAR szFileName[MAX_PATH] = { };
 
         // Show the dialog
-        OPENFILENAME ofn = {};
+        OPENFILENAME ofn = { };
         ofn.lStructSize = sizeof(ofn);
         ofn.hwndOwner = m_hWnd;
         ofn.lpstrFilter = szFilter;
@@ -370,56 +396,60 @@ void TcxRouteNameDialog::OnBrowseInput(WPARAM, LPARAM)
     {
         hr = HRESULT_FROM_WIN32(::GetLastError());
     }
+
+    ConstructOutputPathName();
 }
+
+int CALLBACK TcxRouteNameDialog::BrowseCallbackProc(HWND hWnd, UINT uMsg, LPARAM, LPARAM pData)
+{
+    if (uMsg == BFFM_INITIALIZED)
+    {
+        SendMessage(hWnd, BFFM_SETSELECTION, TRUE, pData);
+    }
+    return 0;
+}
+
 
 void TcxRouteNameDialog::OnBrowseOutput(WPARAM, LPARAM)
 {
     // Don't auto-update the name while we're looking for it
     m_fIgnoreDeviceChange = true;
 
-    // Load the filter string
-    HRESULT hr = S_OK;
-    WCHAR szFilter[MAX_PATH] = {};
-    if (LoadStringW(HINST_THIS_MODULE, IDS_OPEN_MASK, szFilter, ARRAYSIZE(szFilter)))
-    {
-        ReplaceCharactersInPlace(szFilter, L'|', L'\0');
+    WCHAR szInitialDirectory[MAX_PATH] = { };
+    ComboBox_GetText(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), szInitialDirectory, ARRAYSIZE(szInitialDirectory));
 
-        WCHAR szFileName[MAX_PATH] = {};
-        if (GetDlgItemTextW(m_hWnd, IDC_EDIT_OUTPUT_FILE, szFileName, ARRAYSIZE(szFileName)) == 0)
+    WCHAR szTitle[MAX_PATH] = { };
+    ::LoadStringW(HINST_THIS_MODULE, IDS_BROWSEDIRECTORY_TITLE, szTitle, ARRAYSIZE(szTitle));
+
+
+    BROWSEINFOW browseInfo = { };
+    browseInfo.hwndOwner = m_hWnd;
+    browseInfo.lpszTitle = szTitle;
+    browseInfo.lParam = reinterpret_cast<LPARAM>(szInitialDirectory);
+    browseInfo.lpfn = BrowseCallbackProc;
+    LPITEMIDLIST pidlItem = SHBrowseForFolder(&browseInfo);
+    if (pidlItem != NULL)
+    {
+        WCHAR szDirectory[MAX_PATH] = { };
+        if (SHGetPathFromIDList(pidlItem, szDirectory))
         {
-            WCHAR szInputFile[MAX_PATH] = {};
-            if (GetDlgItemTextW(m_hWnd, IDC_EDIT_INPUT_FILE, szInputFile, ARRAYSIZE(szInputFile)) != 0)
+            int nIndex = ComboBox_FindStringExact(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), 0, szDirectory);
+            if (nIndex == CB_ERR)
             {
-                StringCchCopyW(szFileName, ARRAYSIZE(szFileName), PathFindFileNameW(szInputFile));
+                nIndex = ComboBox_AddString(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), szDirectory);
             }
+            ComboBox_SetCurSel(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), nIndex);
         }
-
-        // Show the dialog
-        OPENFILENAME ofn = {};
-        ofn.lStructSize = sizeof(ofn);
-        ofn.hwndOwner = m_hWnd;
-        ofn.lpstrFilter = szFilter;
-        ofn.lpstrFile = szFileName;
-        ofn.nMaxFile = ARRAYSIZE(szFileName);
-        ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
-        ofn.lpstrDefExt = L"tcx";
-        if (GetSaveFileNameW(&ofn))
-        {
-            SetDlgItemTextW(m_hWnd, IDC_EDIT_OUTPUT_FILE, szFileName);
-        }
-    }
-    else
-    {
-        hr = HRESULT_FROM_WIN32(::GetLastError());
+        ILFree(pidlItem);
     }
 
     m_fIgnoreDeviceChange = false;
 
     // If the user cancelled, might as well try again.
-    ConstructOutputFileName();
+    ConstructOutputPathName();
 
     // Set the current directory to the directory of the application
-    WCHAR szAppPath[MAX_PATH] = {};
+    WCHAR szAppPath[MAX_PATH] = { };
     if (::GetModuleFileNameW(NULL, szAppPath, ARRAYSIZE(szAppPath)))
     {
         if (::PathRemoveFileSpecW(szAppPath))
@@ -431,7 +461,7 @@ void TcxRouteNameDialog::OnBrowseOutput(WPARAM, LPARAM)
 
 void TcxRouteNameDialog::OnDeleteInput(WPARAM, LPARAM)
 {
-    WCHAR szInputFileName[MAX_PATH] = {};
+    WCHAR szInputFileName[MAX_PATH] = { };
     if (GetDlgItemTextW(m_hWnd, IDC_EDIT_INPUT_FILE, szInputFileName, ARRAYSIZE(szInputFileName)))
     {
         // Make sure it isn't empty
@@ -464,41 +494,85 @@ LRESULT TcxRouteNameDialog::OnDeviceChange(WPARAM wParam, LPARAM lParam)
 {
     if (!m_fIgnoreDeviceChange)
     {
-        if (GetWindowTextLengthW(GetDlgItem(m_hWnd, IDC_EDIT_OUTPUT_FILE)) == 0)
+        if (wParam == DBT_DEVICEARRIVAL || wParam == DBT_DEVICEREMOVECOMPLETE)
         {
-            if (wParam == DBT_DEVICEARRIVAL)
-            {
-                ConstructOutputFileName();
-            }
+            AddGarminDevicesToDirectoryList();
         }
     }
     return TRUE;
 }
 
-void TcxRouteNameDialog::ConstructOutputFileName()
+void TcxRouteNameDialog::ConstructOutputPathName()
 {
     // Get the input file name
-    WCHAR szInputFileName[MAX_PATH] = {};
+    WCHAR szInputFileName[MAX_PATH] = { };
     if (GetDlgItemTextW(m_hWnd, IDC_EDIT_INPUT_FILE, szInputFileName, ARRAYSIZE(szInputFileName)))
     {
         // Make sure it isn't empty
         if (lstrlenW(szInputFileName) != 0)
         {
-            // If the output file name IS empty
-            if (GetWindowTextLengthW(GetDlgItem(m_hWnd, IDC_EDIT_OUTPUT_FILE)) == 0)
-            {
-                // Try to find the first Garmin device
-                WCHAR szOutputFile[MAX_PATH] = { 0 };
-                if (SUCCEEDED(GetFirstGarminDeviceNewFilesDirectory(szOutputFile, ARRAYSIZE(szOutputFile))))
-                {
-                    // Append the file name
-                    PathAppendW(szOutputFile, PathFindFileNameW(szInputFileName));
+            // Get the currently selected path
+            WCHAR szCurrentDirectory[MAX_PATH] = { };
+            (void)ComboBox_GetText(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), szCurrentDirectory, ARRAYSIZE(szCurrentDirectory));
 
-                    // Set it
-                    SetDlgItemTextW(m_hWnd, IDC_EDIT_OUTPUT_FILE, szOutputFile);
-                }
+            if (lstrlenW(szCurrentDirectory) != 0)
+            {
+                // Append the file name
+                PathAppendW(szCurrentDirectory, PathFindFileNameW(szInputFileName));
+
+                // Set it
+                SetDlgItemTextW(m_hWnd, IDC_EDIT_OUTPUT_FILE, szCurrentDirectory);
             }
         }
+    }
+}
+
+void TcxRouteNameDialog::AddGarminDevicesToDirectoryList()
+{
+    // Get the paths to all garmin devices
+    PWSTR pszOutputFile = NULL;
+    if (SUCCEEDED(GetAllGarminDeviceNewFilesDirectories(&pszOutputFile)))
+    {
+        // Get the currently selected path
+        WCHAR szCurrentDirectory[MAX_PATH] = { };
+        (void)ComboBox_GetText(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), szCurrentDirectory, ARRAYSIZE(szCurrentDirectory));
+                    
+        // Delete all automatically added entries
+        for (int i = ComboBox_GetCount(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES)); i > 0; --i)
+        {
+            if (ComboBox_GetItemData(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), i - 1) != 0)
+            {
+                ComboBox_DeleteString(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), i - 1);
+            }
+        }
+
+        // Loop through all of the device paths
+        PWSTR pszCurrent = pszOutputFile;
+        while (*pszCurrent)
+        {
+            // Add it.
+            int nIndex = ComboBox_AddString(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), pszCurrent);
+
+            // Set its data to 1 so we know it is an automatically added device
+            ComboBox_SetItemData(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), nIndex, 1);
+
+            pszCurrent += lstrlenW(pszCurrent) + 1;
+        }
+
+        // Find the originally selected item index or set it to zero
+        int nSelectedItem = ComboBox_FindStringExact(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), 0, szCurrentDirectory);
+        if (nSelectedItem == CB_ERR)
+        {
+            nSelectedItem = 0;
+        }
+
+        // Set the current selection
+        ComboBox_SetCurSel(GetDlgItem(m_hWnd, IDC_COMBO_DIRECTORIES), nSelectedItem);
+
+        // Construct the current pathname
+        ConstructOutputPathName();
+
+        ::LocalFree(pszOutputFile);
     }
 }
 
@@ -614,7 +688,7 @@ HRESULT TcxRouteNameDialog::GetFileCount(PCWSTR pszDirectory, PCWSTR pszPattern,
 {
     *pnFileCount = 0;
     // Make a copy of the directory
-    WCHAR szFileSpec[MAX_PATH] = {};
+    WCHAR szFileSpec[MAX_PATH] = { };
     HRESULT hr = StringCchCopy(szFileSpec, ARRAYSIZE(szFileSpec), pszDirectory);
     if (SUCCEEDED(hr))
     {
@@ -622,7 +696,7 @@ HRESULT TcxRouteNameDialog::GetFileCount(PCWSTR pszDirectory, PCWSTR pszPattern,
         if (PathAppendW(szFileSpec, pszPattern))
         {
             // Find all files with this pattern
-            WIN32_FIND_DATAW findData = {};
+            WIN32_FIND_DATAW findData = { };
             HANDLE hFind = FindFirstFileW(szFileSpec, &findData);
             if (INVALID_HANDLE_VALUE != hFind)
             {
@@ -661,7 +735,7 @@ HRESULT TcxRouteNameDialog::CountRoutesOnDevice(PCWSTR pszOutputFilename, int* p
     *pnCoursesCount = 0;
 
     // Make a copy of the output filename
-    WCHAR szOutputDirectory[MAX_PATH] = {};
+    WCHAR szOutputDirectory[MAX_PATH] = { };
     HRESULT hr = StringCchCopy(szOutputDirectory, ARRAYSIZE(szOutputDirectory), pszOutputFilename);
     if (SUCCEEDED(hr))
     {
@@ -730,11 +804,11 @@ void TcxRouteNameDialog::OnSave(WPARAM, LPARAM)
     HRESULT hr = S_OK;
 
     // Get output file name
-    WCHAR szOutputFile[MAX_PATH] = {};
+    WCHAR szOutputFile[MAX_PATH] = { };
     if (GetDlgItemTextW(m_hWnd, IDC_EDIT_OUTPUT_FILE, szOutputFile, ARRAYSIZE(szOutputFile)))
     {
         // Get route name
-        WCHAR szRouteName[MAX_PATH] = {};
+        WCHAR szRouteName[MAX_PATH] = { };
         if (GetDlgItemTextW(m_hWnd, IDC_EDIT_ROUTE_NAME, szRouteName, ARRAYSIZE(szRouteName)))
         {
             // Set route name
@@ -790,6 +864,11 @@ void TcxRouteNameDialog::OnSave(WPARAM, LPARAM)
     }
 }
 
+void TcxRouteNameDialog::OnDirectorySelChange(WPARAM, LPARAM)
+{
+    ConstructOutputPathName();
+}
+
 INT_PTR CALLBACK TcxRouteNameDialog::DialogProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     BEGIN_MESSAGE_HANDLERS(TcxRouteNameDialog)
@@ -801,6 +880,7 @@ INT_PTR CALLBACK TcxRouteNameDialog::DialogProc(HWND hWnd, UINT uMsg, WPARAM wPa
             COMMAND_HANDLER_CODE(IDC_EDIT_INPUT_FILE, EN_CHANGE, OnEditChange);
             COMMAND_HANDLER_CODE(IDC_EDIT_OUTPUT_FILE, EN_CHANGE, OnEditChange);
             COMMAND_HANDLER_CODE(IDC_EDIT_ROUTE_NAME, EN_CHANGE, OnEditChange);
+            COMMAND_HANDLER_CODE(IDC_COMBO_DIRECTORIES, CBN_SELCHANGE, OnDirectorySelChange);
             COMMAND_HANDLER(IDCANCEL, OnCancel);
             COMMAND_HANDLER(IDC_SAVE, OnSave);
             COMMAND_HANDLER(IDC_BROWSE_INPUT, OnBrowseInput);
